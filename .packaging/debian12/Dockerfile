@@ -64,4 +64,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxkbregistry-dev:arm64 \
     libwayland-dev:arm64
 
-RUN cd /opt; wget https://github.com/mstorsjo/llvm-mingw/releases/download/20241001/llvm-mingw-20241001-ucrt-ubuntu-20.04-x86_64.tar.xz; tar -xJf llvm-mingw-20241001-ucrt-ubuntu-20.04-x86_64.tar.xz; rm *.tar.xz
+SHELL [ "/usr/bin/env", "-S", "bash", "-ex", "-o", "pipefail", "-c" ]
+
+RUN <<EOS
+    LATEST_MINGW=$(curl -s https://api.github.com/repos/mstorsjo/llvm-mingw/releases/latest | grep -oP '"tag_name": "\K(.*)(?=")')
+    ARCH=$(dpkg --print-architecture)
+    case $ARCH in
+      amd64) MINGW_ARCH="x86_64" ;;
+      arm64) MINGW_ARCH="aarch64" ;;
+      armhf) MINGW_ARCH="armv7" ;;
+      *) echo "Unsupported architecture: $ARCH" && exit 1 ;;
+    esac
+    cd /opt
+    curl -L -o /dev/stdout -s https://github.com/mstorsjo/llvm-mingw/releases/download/${LATEST_MINGW}/llvm-mingw-${LATEST_MINGW}-ucrt-ubuntu-20.04-${MINGW_ARCH}.tar.xz |
+      tar -xJf /dev/stdin
+    ln -fs llvm-mingw-${LATEST_MINGW}-ucrt-ubuntu-20.04-${MINGW_ARCH} llvm-mingw
+    echo "export PATH=/opt/llvm-mingw/bin:\$PATH" >> /etc/bash.bashrc
+EOS
+
+ENV PATH="/opt/llvm-mingw/bin:${PATH}"
